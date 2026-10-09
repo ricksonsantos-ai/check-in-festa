@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -45,6 +45,7 @@
         .input-group {
             margin-bottom: 25px !important;
             text-align: left !important;
+            position: relative !important; /* Essencial para as sugestões */
         }
         label {
             font-weight: bold !important;
@@ -65,6 +66,36 @@
             border-color: var(--roxo) !important;
             outline: none !important;
         }
+        
+        /* Estilos para a lista de sugestões customizada */
+        #sugestoes {
+            position: absolute !important;
+            top: 100% !important;
+            left: 0 !important;
+            right: 0 !important;
+            background: white !important;
+            border: 1px solid #ddd !important;
+            border-top: none !important;
+            border-radius: 0 0 8px 8px !important;
+            max-height: 200px !important;
+            overflow-y: auto !important;
+            z-index: 1000 !important;
+            display: none !important; /* Escondida por defeito */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        }
+        .sugestao-item {
+            padding: 10px 15px !important;
+            cursor: pointer !important;
+            border-bottom: 1px solid #f0f0f0 !important;
+        }
+        .sugestao-item:last-child {
+            border-bottom: none !important;
+        }
+        .sugestao-item:hover {
+            background-color: #f9f9f9 !important;
+            color: var(--roxo) !important;
+        }
+
         .buttons {
             display: flex !important;
             gap: 15px !important;
@@ -105,15 +136,15 @@
     <div class="container">
         <h2>Festa dos Professores 2026</h2>
         
-        <div id="loading">Carregando lista de convidados... aguarde.</div>
+        <div id="loading">A carregar a lista de convidados... aguarde.</div>
         
-        <!-- O formulário fica escondido até a lista baixar da planilha -->
         <div id="appForm" style="display: none;">
             <div class="input-group">
                 <label for="buscaNome">Buscar Nome:</label>
-                <!-- O "list" conecta esse input ao datalist abaixo -->
-                <input type="text" id="buscaNome" list="nomesList" placeholder="Digite para buscar..." autocomplete="off">
-                <datalist id="nomesList"></datalist>
+                <!-- O input já não usa datalist -->
+                <input type="text" id="buscaNome" placeholder="Comece a escrever para procurar..." autocomplete="off">
+                <!-- Contentor para as sugestões -->
+                <div id="sugestoes"></div>
             </div>
             
             <div class="buttons">
@@ -129,22 +160,18 @@
         // ATENÇÃO: Cole a URL gerada no seu Apps Script aqui
         const scriptURL = 'https://script.google.com/macros/s/AKfycbxSem8E1FShG416jET9EqrPwUZxzo9AfGppXGKCNpqVyxUQWJaJVWbVhVT0DVB5hwz4iw/exec';
         
-        // Assim que a página abre, ela vai buscar os nomes na sua planilha
+        let nomesCarregados = []; // Variável para guardar os nomes globalmente
+
         window.onload = function() {
             fetch(scriptURL + '?action=getNomes', { method: 'GET', redirect: 'follow' })
                 .then(response => response.json())
                 .then(nomes => {
-                    const datalist = document.getElementById('nomesList');
-                    // Cria uma opção de autocomplete para cada nome na planilha
-                    nomes.forEach(nome => {
-                        let option = document.createElement('option');
-                        option.value = nome;
-                        datalist.appendChild(option);
-                    });
+                    nomesCarregados = nomes; // Guarda os nomes
                     
-                    // Esconde o "carregando" e mostra o formulário
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('appForm').style.display = 'block';
+                    
+                    configurarPesquisa(); // Inicializa o sistema de pesquisa
                 })
                 .catch(error => {
                     document.getElementById('loading').innerText = "Erro ao carregar a lista. Verifique a internet ou a URL.";
@@ -152,35 +179,79 @@
                 });
         };
 
-        // Função ativada pelos botões
+        function configurarPesquisa() {
+            const input = document.getElementById('buscaNome');
+            const sugestoesBox = document.getElementById('sugestoes');
+
+            // Evento ativado cada vez que se escreve no input
+            input.addEventListener('input', function() {
+                const termo = this.value.toUpperCase();
+                sugestoesBox.innerHTML = ''; // Limpa resultados anteriores
+                
+                if (!termo) {
+                    sugestoesBox.style.display = 'none'; // Esconde se estiver vazio
+                    return;
+                }
+
+                // Filtra a lista de nomes pelo que foi digitado
+                const resultados = nomesCarregados.filter(nome => 
+                    nome.toUpperCase().includes(termo)
+                );
+
+                if (resultados.length > 0) {
+                    // Cria os itens da lista
+                    resultados.forEach(nome => {
+                        const div = document.createElement('div');
+                        div.className = 'sugestao-item';
+                        div.innerText = nome;
+                        
+                        // Ao clicar na sugestão, preenche o input e fecha a lista
+                        div.addEventListener('click', function() {
+                            input.value = nome;
+                            sugestoesBox.style.display = 'none';
+                        });
+                        
+                        sugestoesBox.appendChild(div);
+                    });
+                    sugestoesBox.style.display = 'block'; // Mostra as sugestões
+                } else {
+                    sugestoesBox.style.display = 'none';
+                }
+            });
+
+            // Esconde a lista se clicar fora do input
+            document.addEventListener('click', function(e) {
+                if (e.target !== input && e.target !== sugestoesBox) {
+                    sugestoesBox.style.display = 'none';
+                }
+            });
+        }
+
         function processarAcao(acao) {
             const inputNome = document.getElementById('buscaNome');
             const nomeSelecionado = inputNome.value.trim();
             const divMensagem = document.getElementById('mensagem');
             
-            if (!nomeSelecionado) {
+            // Valida se o nome digitado/selecionado existe na lista de facto
+            if (!nomeSelecionado || !nomesCarregados.includes(nomeSelecionado)) {
                 divMensagem.style.color = 'red';
-                divMensagem.innerText = "Por favor, digite ou selecione um nome primeiro.";
+                divMensagem.innerText = "Por favor, selecione um nome válido da lista.";
                 return;
             }
 
-            // Trava os botões enquanto processa
             document.getElementById('btnCheckin').disabled = true;
             document.getElementById('btnDesfazer').disabled = true;
             divMensagem.style.color = '#333';
-            divMensagem.innerText = "Processando...";
+            divMensagem.innerText = "A processar...";
 
-            // Monta a requisição via GET
             const params = new URLSearchParams({
                 action: acao,
                 nome: nomeSelecionado
             });
 
-            // Envia para o script
             fetch(scriptURL + '?' + params.toString(), { method: 'GET', redirect: 'follow' })
                 .then(response => response.text())
                 .then(resultado => {
-                    // Exibe o que o servidor respondeu ("Check-in feito", "Desfeito" ou "Erro")
                     if (resultado.includes("Erro")) {
                         divMensagem.style.color = 'red';
                     } else if (acao === 'checkin') {
@@ -190,18 +261,16 @@
                     }
                     divMensagem.innerText = resultado;
                     
-                    // Limpa o campo para a próxima pessoa
                     inputNome.value = '';
                 })
                 .catch(error => {
                     divMensagem.style.color = 'red';
-                    divMensagem.innerText = "Erro de conexão. Tente novamente.";
+                    divMensagem.innerText = "Erro de ligação. Tente novamente.";
                 })
                 .finally(() => {
-                    // Destrava os botões
                     document.getElementById('btnCheckin').disabled = false;
                     document.getElementById('btnDesfazer').disabled = false;
-                    inputNome.focus(); // Coloca o cursor de volta no campo
+                    inputNome.focus();
                 });
         }
     </script>
