@@ -80,7 +80,7 @@
             max-height: 200px !important;
             overflow-y: auto !important;
             z-index: 1000 !important;
-            display: none !important; 
+            display: none !important; /* Escondido por defeito */
             box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
         }
         .sugestao-item {
@@ -143,7 +143,7 @@
         <div id="appForm" style="display: none;">
             <div class="input-group">
                 <label for="buscaNome">Buscar Nome:</label>
-                <input type="text" id="buscaNome" placeholder="Comece a digitar para procurar..." autocomplete="off">
+                <input type="text" id="buscaNome" placeholder="Digite pelo menos 3 letras..." autocomplete="off">
                 <div id="sugestoes"></div>
             </div>
             
@@ -168,18 +168,17 @@
                     try {
                         return JSON.parse(text);
                     } catch (e) {
-                        throw new Error("Erro de leitura do servidor: " + text.substring(0, 80));
+                        throw new Error("Erro de leitura do servidor.");
                     }
                 })
                 .then(nomes => {
-                    // Limpeza radical: converte tudo para texto, limpa os espaços vazios e remove os itens em branco
                     nomesCarregados = nomes
                         .filter(n => n !== null && n !== undefined)
                         .map(n => String(n).trim())
                         .filter(n => n !== "");
                     
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('appForm').style.display = 'block';
+                    document.getElementById('loading').style.setProperty('display', 'none', 'important');
+                    document.getElementById('appForm').style.setProperty('display', 'block', 'important');
                     
                     const divMsg = document.getElementById('mensagem');
                     divMsg.innerText = nomesCarregados.length + " professores carregados com sucesso!";
@@ -191,7 +190,6 @@
                     const boxErro = document.getElementById('loading');
                     boxErro.style.color = "red";
                     boxErro.innerText = "ERRO: " + error.message;
-                    console.error('Erro:', error);
                 });
         };
 
@@ -203,12 +201,12 @@
                 const termo = String(this.value).toUpperCase().trim();
                 sugestoesBox.innerHTML = ''; 
                 
-                if (!termo) {
-                    sugestoesBox.style.display = 'none'; 
+                // Exige pelo menos 3 caracteres para pesquisar e exibir
+                if (termo.length < 3) {
+                    sugestoesBox.style.setProperty('display', 'none', 'important'); 
                     return;
                 }
 
-                // Cria uma lista segura para procurar, removendo acentos e convertendo para maiúsculas
                 const termoLimpo = termo.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
                 const resultados = nomesCarregados.filter(nome => {
@@ -226,20 +224,22 @@
                         
                         div.addEventListener('click', function() {
                             input.value = nome;
-                            sugestoesBox.style.display = 'none';
+                            sugestoesBox.style.setProperty('display', 'none', 'important');
                         });
                         
                         sugestoesBox.appendChild(div);
                     });
-                    sugestoesBox.style.display = 'block'; 
+                    
+                    // Força a exibição da caixa quebrando o bloqueio do CSS !important
+                    sugestoesBox.style.setProperty('display', 'block', 'important'); 
                 } else {
-                    sugestoesBox.style.display = 'none';
+                    sugestoesBox.style.setProperty('display', 'none', 'important');
                 }
             });
 
             document.addEventListener('click', function(e) {
                 if (e.target !== input && e.target !== sugestoesBox) {
-                    sugestoesBox.style.display = 'none';
+                    sugestoesBox.style.setProperty('display', 'none', 'important');
                 }
             });
         }
