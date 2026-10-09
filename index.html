@@ -162,27 +162,27 @@
         let nomesCarregados = []; 
 
         window.onload = function() {
-            // Requisição para a planilha com tratamento de erro rigoroso
             fetch(scriptURL + '?action=getNomes', { method: 'GET', redirect: 'follow' })
                 .then(async response => {
                     const text = await response.text();
                     try {
-                        // Tenta converter o que o Google respondeu para JSON
                         return JSON.parse(text);
                     } catch (e) {
-                        // Se não for JSON, significa que o Google bloqueou a página ou gerou erro
-                        throw new Error("O Google não enviou a lista. Ele respondeu: " + text.substring(0, 80));
+                        throw new Error("Erro de leitura do servidor: " + text.substring(0, 80));
                     }
                 })
                 .then(nomes => {
-                    nomesCarregados = nomes; 
+                    // Limpeza radical: converte tudo para texto, limpa os espaços vazios e remove os itens em branco
+                    nomesCarregados = nomes
+                        .filter(n => n !== null && n !== undefined)
+                        .map(n => String(n).trim())
+                        .filter(n => n !== "");
                     
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('appForm').style.display = 'block';
                     
-                    // Aviso visual pra gente saber que deu certo:
                     const divMsg = document.getElementById('mensagem');
-                    divMsg.innerText = nomes.length + " professores carregados com sucesso!";
+                    divMsg.innerText = nomesCarregados.length + " professores carregados com sucesso!";
                     divMsg.style.color = "#4B0082";
                     
                     configurarPesquisa(); 
@@ -190,7 +190,7 @@
                 .catch(error => {
                     const boxErro = document.getElementById('loading');
                     boxErro.style.color = "red";
-                    boxErro.innerText = "ERRO DETALHADO: " + error.message;
+                    boxErro.innerText = "ERRO: " + error.message;
                     console.error('Erro:', error);
                 });
         };
@@ -208,13 +208,15 @@
                     return;
                 }
 
-                // Proteção extra: String() garante que mesmo células com números sejam lidas como texto
-                const resultados = nomesCarregados.filter(nome => 
-                    String(nome).toUpperCase().includes(termo)
-                );
+                // Cria uma lista segura para procurar, removendo acentos e convertendo para maiúsculas
+                const termoLimpo = termo.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+                const resultados = nomesCarregados.filter(nome => {
+                    const nomeLimpo = nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+                    return nomeLimpo.includes(termoLimpo);
+                });
 
                 if (resultados.length > 0) {
-                    // Mostra no máximo 15 sugestões para não travar a tela
                     const limiteResultados = resultados.slice(0, 15);
                     
                     limiteResultados.forEach(nome => {
@@ -247,9 +249,9 @@
             const nomeSelecionado = String(inputNome.value).trim();
             const divMensagem = document.getElementById('mensagem');
             
-            if (!nomeSelecionado || !nomesCarregados.includes(nomeSelecionado)) {
+            if (!nomeSelecionado) {
                 divMensagem.style.color = 'red';
-                divMensagem.innerText = "Por favor, selecione um nome da lista de sugestões.";
+                divMensagem.innerText = "Por favor, selecione ou digite um nome.";
                 return;
             }
 
@@ -265,8 +267,7 @@
 
             fetch(scriptURL + '?' + params.toString(), { method: 'GET', redirect: 'follow' })
                 .then(async response => {
-                    const text = await response.text();
-                    return text;
+                    return await response.text();
                 })
                 .then(resultado => {
                     if (resultado.includes("Erro")) {
