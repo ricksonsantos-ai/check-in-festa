@@ -39,8 +39,9 @@
         }
         #loading {
             color: #666 !important;
-            font-style: italic !important;
+            font-weight: bold !important;
             margin-bottom: 20px !important;
+            word-wrap: break-word !important;
         }
         .input-group {
             margin-bottom: 25px !important;
@@ -86,6 +87,7 @@
             padding: 10px 15px !important;
             cursor: pointer !important;
             border-bottom: 1px solid #f0f0f0 !important;
+            text-transform: uppercase !important;
         }
         .sugestao-item:last-child {
             border-bottom: none !important;
@@ -93,6 +95,7 @@
         .sugestao-item:hover {
             background-color: #f9f9f9 !important;
             color: var(--roxo) !important;
+            font-weight: bold !important;
         }
 
         .buttons {
@@ -123,3 +126,170 @@
         .btn-desfazer { background-color: var(--vermelho) !important; }
         
         #mensagem {
+            margin-top: 20px !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+            min-height: 25px !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Festa dos Professores 2026</h2>
+        
+        <div id="loading">A conectar com a planilha do Google...</div>
+        
+        <div id="appForm" style="display: none;">
+            <div class="input-group">
+                <label for="buscaNome">Buscar Nome:</label>
+                <input type="text" id="buscaNome" placeholder="Comece a digitar para procurar..." autocomplete="off">
+                <div id="sugestoes"></div>
+            </div>
+            
+            <div class="buttons">
+                <button id="btnCheckin" class="btn-checkin" onclick="processarAcao('checkin')">Fazer Check-in</button>
+                <button id="btnDesfazer" class="btn-desfazer" onclick="processarAcao('desfazer')">Desfazer</button>
+            </div>
+        </div>
+
+        <div id="mensagem"></div>
+    </div>
+
+    <script>
+        const scriptURL = 'https://script.google.com/macros/s/AKfycbxSem8E1FShG416jET9EqrPwUZxzo9AfGppXGKCNpqVyxUQWJaJVWbVhVT0DVB5hwz4iw/exec';
+        
+        let nomesCarregados = []; 
+
+        window.onload = function() {
+            // Requisição para a planilha com tratamento de erro rigoroso
+            fetch(scriptURL + '?action=getNomes', { method: 'GET', redirect: 'follow' })
+                .then(async response => {
+                    const text = await response.text();
+                    try {
+                        // Tenta converter o que o Google respondeu para JSON
+                        return JSON.parse(text);
+                    } catch (e) {
+                        // Se não for JSON, significa que o Google bloqueou a página ou gerou erro
+                        throw new Error("O Google não enviou a lista. Ele respondeu: " + text.substring(0, 80));
+                    }
+                })
+                .then(nomes => {
+                    nomesCarregados = nomes; 
+                    
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('appForm').style.display = 'block';
+                    
+                    // Aviso visual pra gente saber que deu certo:
+                    const divMsg = document.getElementById('mensagem');
+                    divMsg.innerText = nomes.length + " professores carregados com sucesso!";
+                    divMsg.style.color = "#4B0082";
+                    
+                    configurarPesquisa(); 
+                })
+                .catch(error => {
+                    const boxErro = document.getElementById('loading');
+                    boxErro.style.color = "red";
+                    boxErro.innerText = "ERRO DETALHADO: " + error.message;
+                    console.error('Erro:', error);
+                });
+        };
+
+        function configurarPesquisa() {
+            const input = document.getElementById('buscaNome');
+            const sugestoesBox = document.getElementById('sugestoes');
+
+            input.addEventListener('input', function() {
+                const termo = String(this.value).toUpperCase().trim();
+                sugestoesBox.innerHTML = ''; 
+                
+                if (!termo) {
+                    sugestoesBox.style.display = 'none'; 
+                    return;
+                }
+
+                // Proteção extra: String() garante que mesmo células com números sejam lidas como texto
+                const resultados = nomesCarregados.filter(nome => 
+                    String(nome).toUpperCase().includes(termo)
+                );
+
+                if (resultados.length > 0) {
+                    // Mostra no máximo 15 sugestões para não travar a tela
+                    const limiteResultados = resultados.slice(0, 15);
+                    
+                    limiteResultados.forEach(nome => {
+                        const div = document.createElement('div');
+                        div.className = 'sugestao-item';
+                        div.innerText = nome;
+                        
+                        div.addEventListener('click', function() {
+                            input.value = nome;
+                            sugestoesBox.style.display = 'none';
+                        });
+                        
+                        sugestoesBox.appendChild(div);
+                    });
+                    sugestoesBox.style.display = 'block'; 
+                } else {
+                    sugestoesBox.style.display = 'none';
+                }
+            });
+
+            document.addEventListener('click', function(e) {
+                if (e.target !== input && e.target !== sugestoesBox) {
+                    sugestoesBox.style.display = 'none';
+                }
+            });
+        }
+
+        function processarAcao(acao) {
+            const inputNome = document.getElementById('buscaNome');
+            const nomeSelecionado = String(inputNome.value).trim();
+            const divMensagem = document.getElementById('mensagem');
+            
+            if (!nomeSelecionado || !nomesCarregados.includes(nomeSelecionado)) {
+                divMensagem.style.color = 'red';
+                divMensagem.innerText = "Por favor, selecione um nome da lista de sugestões.";
+                return;
+            }
+
+            document.getElementById('btnCheckin').disabled = true;
+            document.getElementById('btnDesfazer').disabled = true;
+            divMensagem.style.color = '#333';
+            divMensagem.innerText = "A processar no servidor...";
+
+            const params = new URLSearchParams({
+                action: acao,
+                nome: nomeSelecionado
+            });
+
+            fetch(scriptURL + '?' + params.toString(), { method: 'GET', redirect: 'follow' })
+                .then(async response => {
+                    const text = await response.text();
+                    return text;
+                })
+                .then(resultado => {
+                    if (resultado.includes("Erro")) {
+                        divMensagem.style.color = 'red';
+                    } else if (acao === 'checkin') {
+                        divMensagem.style.color = 'green';
+                    } else {
+                        divMensagem.style.color = 'orange';
+                    }
+                    divMensagem.innerText = resultado;
+                    
+                    inputNome.value = '';
+                })
+                .catch(error => {
+                    divMensagem.style.color = 'red';
+                    divMensagem.innerText = "Erro de ligação com a planilha. Tente novamente.";
+                })
+                .finally(() => {
+                    document.getElementById('btnCheckin').disabled = false;
+                    document.getElementById('btnDesfazer').disabled = false;
+                    inputNome.focus();
+                });
+        }
+    </script>
+</body>
+</html>
