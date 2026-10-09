@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check-in Festa dos Professores</title>
+    <style>
+        :root {
+            --roxo: #4B0082 !important;
+            --fundo: #f4f4f9 !important;
+            --verde: #28a745 !important;
+            --vermelho: #dc3545 !important;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+            background-color: var(--fundo) !important;
+            color: #333 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            min-height: 100vh !important;
+            margin: 0 !important;
+            padding: 20px !important;
+            box-sizing: border-box !important;
+        }
+        .container {
+            background: white !important;
+            padding: 40px !important;
+            border-radius: 15px !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1) !important;
+            width: 100% !important;
+            max-width: 500px !important;
+            text-align: center !important;
+        }
+        h2 {
+            color: var(--roxo) !important;
+            margin-top: 0 !important;
+            margin-bottom: 25px !important;
+        }
+        #loading {
+            color: #666 !important;
+            font-style: italic !important;
+            margin-bottom: 20px !important;
+        }
+        .input-group {
+            margin-bottom: 25px !important;
+            text-align: left !important;
+        }
+        label {
+            font-weight: bold !important;
+            display: block !important;
+            margin-bottom: 8px !important;
+            color: #555 !important;
+        }
+        input {
+            width: 100% !important;
+            padding: 15px !important;
+            font-size: 16px !important;
+            border: 2px solid #ddd !important;
+            border-radius: 8px !important;
+            box-sizing: border-box !important;
+            transition: border-color 0.3s !important;
+        }
+        input:focus {
+            border-color: var(--roxo) !important;
+            outline: none !important;
+        }
+        .buttons {
+            display: flex !important;
+            gap: 15px !important;
+        }
+        button {
+            flex: 1 !important;
+            color: white !important;
+            border: none !important;
+            padding: 15px !important;
+            border-radius: 8px !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+            cursor: pointer !important;
+            transition: opacity 0.2s, transform 0.1s !important;
+        }
+        button:hover:not(:disabled) {
+            opacity: 0.9 !important;
+            transform: scale(1.02) !important;
+        }
+        button:disabled {
+            background: #ccc !important;
+            cursor: not-allowed !important;
+            transform: none !important;
+        }
+        .btn-checkin { background-color: var(--verde) !important; }
+        .btn-desfazer { background-color: var(--vermelho) !important; }
+        
+        #mensagem {
+            margin-top: 20px !important;
+            font-size: 18px !important;
+            font-weight: bold !important;
+            min-height: 25px !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Festa dos Professores 2026</h2>
+        
+        <div id="loading">Carregando lista de convidados... aguarde.</div>
+        
+        <!-- O formulário fica escondido até a lista baixar da planilha -->
+        <div id="appForm" style="display: none;">
+            <div class="input-group">
+                <label for="buscaNome">Buscar Nome:</label>
+                <!-- O "list" conecta esse input ao datalist abaixo -->
+                <input type="text" id="buscaNome" list="nomesList" placeholder="Digite para buscar..." autocomplete="off">
+                <datalist id="nomesList"></datalist>
+            </div>
+            
+            <div class="buttons">
+                <button id="btnCheckin" class="btn-checkin" onclick="processarAcao('checkin')">Fazer Check-in</button>
+                <button id="btnDesfazer" class="btn-desfazer" onclick="processarAcao('desfazer')">Desfazer</button>
+            </div>
+        </div>
+
+        <div id="mensagem"></div>
+    </div>
+
+    <script>
+        // ATENÇÃO: Cole a URL gerada no seu Apps Script aqui
+        const scriptURL = 'COLE_SUA_URL_DO_APPS_SCRIPT_AQUI';
+        
+        // Assim que a página abre, ela vai buscar os nomes na sua planilha
+        window.onload = function() {
+            fetch(scriptURL + '?action=getNomes', { method: 'GET', redirect: 'follow' })
+                .then(response => response.json())
+                .then(nomes => {
+                    const datalist = document.getElementById('nomesList');
+                    // Cria uma opção de autocomplete para cada nome na planilha
+                    nomes.forEach(nome => {
+                        let option = document.createElement('option');
+                        option.value = nome;
+                        datalist.appendChild(option);
+                    });
+                    
+                    // Esconde o "carregando" e mostra o formulário
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('appForm').style.display = 'block';
+                })
+                .catch(error => {
+                    document.getElementById('loading').innerText = "Erro ao carregar a lista. Verifique a internet ou a URL.";
+                    console.error('Erro:', error);
+                });
+        };
+
+        // Função ativada pelos botões
+        function processarAcao(acao) {
+            const inputNome = document.getElementById('buscaNome');
+            const nomeSelecionado = inputNome.value.trim();
+            const divMensagem = document.getElementById('mensagem');
+            
+            if (!nomeSelecionado) {
+                divMensagem.style.color = 'red';
+                divMensagem.innerText = "Por favor, digite ou selecione um nome primeiro.";
+                return;
+            }
+
+            // Trava os botões enquanto processa
+            document.getElementById('btnCheckin').disabled = true;
+            document.getElementById('btnDesfazer').disabled = true;
+            divMensagem.style.color = '#333';
+            divMensagem.innerText = "Processando...";
+
+            // Monta a requisição via GET
+            const params = new URLSearchParams({
+                action: acao,
+                nome: nomeSelecionado
+            });
+
+            // Envia para o script
+            fetch(scriptURL + '?' + params.toString(), { method: 'GET', redirect: 'follow' })
+                .then(response => response.text())
+                .then(resultado => {
+                    // Exibe o que o servidor respondeu ("Check-in feito", "Desfeito" ou "Erro")
+                    if (resultado.includes("Erro")) {
+                        divMensagem.style.color = 'red';
+                    } else if (acao === 'checkin') {
+                        divMensagem.style.color = 'green';
+                    } else {
+                        divMensagem.style.color = 'orange';
+                    }
+                    divMensagem.innerText = resultado;
+                    
+                    // Limpa o campo para a próxima pessoa
+                    inputNome.value = '';
+                })
+                .catch(error => {
+                    divMensagem.style.color = 'red';
+                    divMensagem.innerText = "Erro de conexão. Tente novamente.";
+                })
+                .finally(() => {
+                    // Destrava os botões
+                    document.getElementById('btnCheckin').disabled = false;
+                    document.getElementById('btnDesfazer').disabled = false;
+                    inputNome.focus(); // Coloca o cursor de volta no campo
+                });
+        }
+    </script>
+</body>
+</html>
